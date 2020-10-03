@@ -2,7 +2,22 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
+import collections
 import os
+from tensorflow.python.keras.optimizer_v2 import optimizer_v2
+from tensorflow.python.util.tf_export import keras_export
+from accountant import GaussianMomentsAccountant
+
+EpsDelta = collections.namedtuple("EpsDelta", ["spent_eps", "spent_delta"])
+
+class DummyAccountant(object):
+  """An accountant that does no accounting."""
+
+  def accumulate_privacy_spending(self, *unused_args):
+    return tf.no_op()
+
+  def get_privacy_spent(self, unused_sess, **unused_kwargs):
+    return [EpsDelta(np.inf, 1.0)]
 
 def make_model():
     model = keras.Sequential([
@@ -12,10 +27,38 @@ def make_model():
     ])
     return model
 
+class DummySanitizer(object):
+  """An sanitizer that does no sanitizing."""
+
+  def sanitize(self, gradients, eps_delta, sigma):
+      return gradients
+
+def make_model():
+    model = keras.Sequential([
+        keras.layers.Flatten(input_shape=(28, 28)),
+        keras.layers.Dense(64, activation='relu'),
+        keras.layers.Dense(10)
+    ])
+    return model
+
+#@keras_export("keras.optimizers.DPSGD")
+class DPSGD_Optimizer(tf.optimizers.SGD):
+    """Differentially private gradient descent optimizer."""
+    def __init__(self, learning_rate, accountant, sanitizer, use_locking=False, name="DPSGD_Optimizer"):
+        super(DPSGD_Optimizer, self).__init__(learning_rate, use_locking, name)
+        self._accountant = accountant
+        self._sanitizer = sanitizer
+
+    def minimize(self, loss, weights, batch_size, eps_delta, sigma, tape):
+        priv_accum_op = self._accountant.accumulate_privacy_spending(eps_delta, sigma, batch_size)
+        with tf.control_dependencies(priv_accum_op):
+            gradients = tape.gradient(loss, weights)
+            sanitized_grad = self._sanitizer.sanitize(gradients, eps_delta, sigma)
+            return self.apply_gradients(zip(gradients, weights))
+
 def main():
-    # Make model, optimizer and loss_fn
+    # Make model and loss_fn
     model = make_model()
-    optimizer = keras.optimizers.SGD(learning_rate=1e-3)
     loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     
     # Prepare the training dataset.
@@ -28,17 +71,31 @@ def main():
     
     # Run training loop
     epochs = 5
+    sigma = 4
+    max_eps = 2.0
+    max_delta = 1e-05
+    eps_delta = EpsDelta(np.inf, 1.0)
+    
+    accountant = GaussianMomentsAccountant(len(x_train))
+    sanitizer = DummySanitizer()
+    dp_opt = DPSGD_Optimizer(0.01, accountant, sanitizer)
+    
     for epoch in range(epochs):
         print(f"\nStart of epoch {epoch}")
         for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
             with tf.GradientTape() as tape:
                 logits = model(x_batch_train, training=True)
                 loss_value = loss_fn(y_batch_train, logits)
-            gradients = tape.gradient(loss_value, model.trainable_weights)
-            optimizer.apply_gradients(zip(gradients, model.trainable_weights))
-            if step % 200 == 0:
-                print(f"Training loss at step: {step}: {float(loss_value)}")
-                print(f"So far trained on {(step+1) * 64} samples")
+                eps, delta = (0, 0)
+                while eps <= max_eps and delta <= max_delta:
+                    dp_opt.minimize(loss_value, model.weights, batch_size, eps_delta, sigma, tape)
+                    eps, delta = accountant.get_privacy_spent(target_eps=[0.1])[0]
+                    print(f'Epsilon: {eps}')
+                    print(f'Delta: {delta}')
+                
+                if step % 200 == 0:
+                    print(f"Training loss at step: {step}: {float(loss_value)}")
+                    print(f"So far trained on {(step+1) * 64} samples")
             
             
 if __name__ == "__main__":
