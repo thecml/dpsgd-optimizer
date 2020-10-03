@@ -1,6 +1,6 @@
 import os
 
-from setuptools import find_packages, setu
+from setuptools import find_packages, setup
 
 setup(
     name='dpsgd-optimizer',
