@@ -9,15 +9,8 @@ from tensorflow.python.util.tf_export import keras_export
 from accountant import GaussianMomentsAccountant
 
 EpsDelta = collections.namedtuple("EpsDelta", ["spent_eps", "spent_delta"])
-
-class DummyAccountant(object):
-  """An accountant that does no accounting."""
-
-  def accumulate_privacy_spending(self, *unused_args):
-    return tf.no_op()
-
-  def get_privacy_spent(self, unused_sess, **unused_kwargs):
-    return [EpsDelta(np.inf, 1.0)]
+IMAGE_SIZE = 28
+TARGET_EPS = [0.125, 0.25, 0.5, 1, 2, 4, 8]
 
 def make_model():
     model = keras.Sequential([
@@ -64,8 +57,10 @@ def main():
     # Prepare the training dataset.
     batch_size = 64
     (x_train, y_train), (x_test, y_test) = keras.datasets.mnist.load_data()
-    x_train = np.reshape(x_train, (-1, 28*28))
-    x_test = np.reshape(x_test, (-1, 28*28))
+    x_train = np.reshape(x_train, (-1, IMAGE_SIZE*IMAGE_SIZE))
+    x_train /= 255
+    x_test = np.reshape(x_test, (-1, IMAGE_SIZE*IMAGE_SIZE))
+    x_test /= 255
     train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
     train_dataset = train_dataset.shuffle(buffer_size=1024).batch(batch_size)
     
@@ -87,11 +82,12 @@ def main():
                 logits = model(x_batch_train, training=True)
                 loss_value = loss_fn(y_batch_train, logits)
                 eps, delta = (0, 0)
+                max_target_eps = max(target_eps)
                 while eps <= max_eps and delta <= max_delta:
                     dp_opt.minimize(loss_value, model.weights, batch_size, eps_delta, sigma, tape)
-                    eps, delta = accountant.get_privacy_spent(target_eps=[0.1])[0]
-                    print(f'Epsilon: {eps}')
-                    print(f'Delta: {delta}')
+                    spent_eps_deltas = accountant.get_privacy_spent(target_eps=max_target_eps)[0]
+                print(f'Final epsilon: {eps}')
+                print(f'Final delta: {delta}')
                 
                 if step % 200 == 0:
                     print(f"Training loss at step: {step}: {float(loss_value)}")
