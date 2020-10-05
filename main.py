@@ -63,15 +63,15 @@ def main():
     batch_size = 64
     (x_train, y_train), (x_test, y_test) = keras.datasets.mnist.load_data()
     x_train = np.reshape(x_train, (-1, IMAGE_SIZE*IMAGE_SIZE))
-    x_train /= 255
+    x_train = x_train.astype("float32") / 255.0
     x_test = np.reshape(x_test, (-1, IMAGE_SIZE*IMAGE_SIZE))
-    x_test /= 255
+    x_test = x_test.astype("float32") / 255.0
 
     # Prepare valid dataset.
-    x_val = x_train[-10000:]
-    y_val = y_train[-10000:]
-    x_train = x_train[:-10000]
-    y_train = y_train[:-10000]
+    x_val = x_train[10000:]
+    y_val = y_train[10000:]
+    x_train = x_train[:10000]
+    y_train = y_train[:10000]
     valid_dataset = tf.data.Dataset.from_tensor_slices((x_val, y_val))
     valid_dataset = valid_dataset.batch(batch_size)
     train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
@@ -96,27 +96,27 @@ def main():
                 logits = model(x_batch_train, training=True)
                 loss_value = loss_fn(y_batch_train, logits)
                 spent_eps_deltas = EpsDelta(0, 0)
-                max_target_eps = max(target_eps)
+                max_target_eps = max(TARGET_EPS)
                 while spent_eps_deltas.spent_eps <= max_eps and spent_eps_deltas.spent_delta <= max_delta:
                     dp_opt.minimize(loss_value, model.weights, batch_size, eps_delta, sigma, tape)
-                    spent_eps_deltas = accountant.get_privacy_spent(target_eps=max_target_eps)[0]
-                for spent_eps, spent_delta in spent_eps_deltas:
-                    print(f"Spent privacy: eps {spent_eps} delta {spent_delta}")
+                    spent_eps_deltas = accountant.get_privacy_spent(target_eps=TARGET_EPS)[0]
+                print(f"Spent privacy: eps {spent_eps_deltas.spent_eps} delta {spent_eps_deltas.spent_delta}")
                 train_acc_metric.update_state(y_batch_train, logits)
                 if step % 200 == 0:
                     print(f"Training loss at step: {step}: {float(loss_value)}")
                     print(f"So far trained on {(step+1) * 64} samples")
+                    
         train_acc = train_acc_metric.result()
         print(f"Training acc over epoch: {float(train_acc)}")
         train_acc_metric.reset_states()
+        
         for x_batch_val, y_batch_val in valid_dataset:
             val_logits = model(x_batch_val, training=False)
             valid_acc_metric.update_state(y_batch_val, val_logits)
-        val_acc = valid_acc_metric.result()
-        val_acc_metric.reset_states()
-        print("Validation acc: %.4f" % (float(val_acc),))
+        valid_acc = valid_acc_metric.result()
+        valid_acc_metric.reset_states()
+        print("Validation acc: %.4f" % (float(valid_acc),))
         print("Time taken: %.2fs" % (time.time() - start_time))
         
-
 if __name__ == "__main__":
     main()
