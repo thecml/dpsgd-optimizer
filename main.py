@@ -16,14 +16,6 @@ TARGET_DELTA = [1e-2]
 BATCH_SIZE = 64
 C = 4.0
 
-def make_model():
-    model = keras.Sequential([
-        keras.layers.Flatten(input_shape=(28, 28)),
-        keras.layers.Dense(64, activation='relu'),
-        keras.layers.Dense(10)
-    ])
-    return model
-
 class GaussianSanitizer(object):
   """An sanitizer that does no sanitizing."""
 
@@ -31,15 +23,7 @@ class GaussianSanitizer(object):
       gradients = [tf.clip_by_norm(g, clip_norm=C) for g in gradients]
       gradients += np.random.normal(0, (sigma ** 2)*(C ** 2), len(gradients))
       return gradients
-      
-def make_model():
-    model = keras.Sequential([
-        keras.layers.Flatten(input_shape=(28, 28)),
-        keras.layers.Dense(64, activation='relu'),
-        keras.layers.Dense(10)
-    ])
-    return model
-
+    
 class DPSGD_Optimizer(tf.optimizers.SGD):
     """Differentially private gradient descent optimizer."""
     def __init__(self, learning_rate, accountant, sanitizer, use_locking=False, name="DPSGD_Optimizer"):
@@ -55,7 +39,11 @@ class DPSGD_Optimizer(tf.optimizers.SGD):
 
 def main():
     # Make model and loss_fn
-    model = make_model()
+    model = keras.Sequential([
+        keras.layers.Flatten(input_shape=(IMAGE_SIZE, IMAGE_SIZE)),
+        keras.layers.Dense(64, activation='relu'),
+        keras.layers.Dense(10)
+    ])
     loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     
     # Prepare the metrics
@@ -82,10 +70,8 @@ def main():
     # Run training loop
     epochs = 10
     sigma = 4
-    max_eps = 2.0
-    max_delta = 1e-05
-    #max_eps = 5.0
-    #max_delta = 1e-03
+    max_eps = 5.0
+    max_delta = 1e-03
     eps_delta = EpsDelta(np.inf, 1.0)
     
     accountant = GaussianMomentsAccountant(len(x_train))
