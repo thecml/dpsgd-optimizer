@@ -4,6 +4,7 @@ from tensorflow import keras
 from tensorflow.keras import layers
 import collections
 import os
+import time
 from tensorflow.python.keras.optimizer_v2 import optimizer_v2
 from tensorflow.python.util.tf_export import keras_export
 from accountant import GaussianMomentsAccountant
@@ -54,6 +55,10 @@ def main():
     model = make_model()
     loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     
+    # Prepare the metrics
+    train_acc_metric = keras.metrics.SparseCategoricalAccuracy()
+    valid_acc_metric = keras.metrics.SparseCategoricalAccuracy()
+    
     # Prepare the training dataset.
     batch_size = 64
     (x_train, y_train), (x_test, y_test) = keras.datasets.mnist.load_data()
@@ -61,6 +66,14 @@ def main():
     x_train /= 255
     x_test = np.reshape(x_test, (-1, IMAGE_SIZE*IMAGE_SIZE))
     x_test /= 255
+
+    # Prepare valid dataset.
+    x_val = x_train[-10000:]
+    y_val = y_train[-10000:]
+    x_train = x_train[:-10000]
+    y_train = y_train[:-10000]
+    valid_dataset = tf.data.Dataset.from_tensor_slices((x_val, y_val))
+    valid_dataset = valid_dataset.batch(batch_size)
     train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
     train_dataset = train_dataset.shuffle(buffer_size=1024).batch(batch_size)
     
@@ -77,22 +90,33 @@ def main():
     
     for epoch in range(epochs):
         print(f"\nStart of epoch {epoch}")
+        start_time = time.time()
         for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
             with tf.GradientTape() as tape:
                 logits = model(x_batch_train, training=True)
                 loss_value = loss_fn(y_batch_train, logits)
-                eps, delta = (0, 0)
+                spent_eps_deltas = EpsDelta(0, 0)
                 max_target_eps = max(target_eps)
-                while eps <= max_eps and delta <= max_delta:
+                while spent_eps_deltas.spent_eps <= max_eps and spent_eps_deltas.spent_delta <= max_delta:
                     dp_opt.minimize(loss_value, model.weights, batch_size, eps_delta, sigma, tape)
                     spent_eps_deltas = accountant.get_privacy_spent(target_eps=max_target_eps)[0]
-                print(f'Final epsilon: {eps}')
-                print(f'Final delta: {delta}')
-                
+                for spent_eps, spent_delta in spent_eps_deltas:
+                    print(f"Spent privacy: eps {spent_eps} delta {spent_delta}")
+                train_acc_metric.update_state(y_batch_train, logits)
                 if step % 200 == 0:
                     print(f"Training loss at step: {step}: {float(loss_value)}")
                     print(f"So far trained on {(step+1) * 64} samples")
-            
-            
+        train_acc = train_acc_metric.result()
+        print(f"Training acc over epoch: {float(train_acc)}")
+        train_acc_metric.reset_states()
+        for x_batch_val, y_batch_val in valid_dataset:
+            val_logits = model(x_batch_val, training=False)
+            valid_acc_metric.update_state(y_batch_val, val_logits)
+        val_acc = valid_acc_metric.result()
+        val_acc_metric.reset_states()
+        print("Validation acc: %.4f" % (float(val_acc),))
+        print("Time taken: %.2fs" % (time.time() - start_time))
+        
+
 if __name__ == "__main__":
     main()
