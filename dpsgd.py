@@ -3,33 +3,23 @@ import tensorflow as tf
 import collections
 import os
 import time
-from accountant import GaussianMomentsAccountant
 import matplotlib.pyplot as plt
+from accountant import GaussianMomentsAccountant
 
 EpsDelta = collections.namedtuple("EpsDelta", ["spent_eps", "spent_delta"])
 IMAGE_SIZE = 28
 N_CHANNELS = 1
 BATCH_SIZE = 64
+LEARNING_RATE = 0.05
 C = 4.0
 
 class GaussianSanitizer(object):
-  def sanitize(self, gradients, sigma):
+  def sanitize(gradients, sigma):
       gradients = [tf.clip_by_norm(g, clip_norm=C) for g in gradients]
       gradients += np.random.normal(0, (sigma ** 2)*(C ** 2), len(gradients))
       return gradients
-    
-class DPSGD_Optimizer(tf.optimizers.SGD):
-    def __init__(self, learning_rate, accountant, sanitizer, use_locking=False, name="DPSGD_Optimizer"):
-        super(DPSGD_Optimizer, self).__init__(learning_rate, use_locking, name)
-        self._accountant = accountant
-        self._sanitizer = sanitizer
-
-    def minimize(self, gradients, weights, eps_delta, sigma):
-        self._accountant.accumulate_privacy_spending(eps_delta, sigma, BATCH_SIZE)
-        gradients[1] = self._sanitizer.sanitize(gradients[1], sigma)
-        return self.apply_gradients(zip(gradients, weights))
-
-def make_model(input_shape):
+        
+def make_model_cnn(input_shape):
 	model = tf.keras.models.Sequential()
 	model.add(tf.keras.layers.Conv2D(32, (3, 3), activation='relu',
                                   kernel_initializer='he_uniform', input_shape=input_shape))
@@ -42,20 +32,19 @@ def make_model(input_shape):
 	model.add(tf.keras.layers.Dense(10, activation='softmax'))
 	return model
 
-def make_model_normal(input_shape):
-    model = tf.keras.models.Sequential([
-        tf.keras.layers.Flatten(input_shape=input_shape),
-        tf.keras.layers.Dense(128,activation='relu'),
-        tf.keras.layers.Dense(10, activation='softmax')
-    ])
+def make_model_dense():
+    model = tf.keras.models.Sequential()
+    model.add(tf.keras.Input(shape=(IMAGE_SIZE*IMAGE_SIZE, N_CHANNELS)))
+    model.add(tf.keras.layers.Dense(128, activation='relu'))
+    model.add(tf.keras.layers.Dense(10, activation='softmax'))
     return model
 
 def main():
     # Prepare the training and test dataset.
     (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
-    x_train = np.reshape(x_train, (-1, IMAGE_SIZE, IMAGE_SIZE, N_CHANNELS))
+    x_train = np.reshape(x_train, (-1, IMAGE_SIZE*IMAGE_SIZE, N_CHANNELS))
     x_train = x_train.astype("float32") / 255.0
-    x_test = np.reshape(x_test, (-1, IMAGE_SIZE, IMAGE_SIZE, N_CHANNELS))
+    x_test = np.reshape(x_test, (-1, IMAGE_SIZE*IMAGE_SIZE, N_CHANNELS))
     x_test = x_test.astype("float32") / 255.0
 
     # Prepare valid dataset.
@@ -69,56 +58,60 @@ def main():
     train_dataset = train_dataset.shuffle(buffer_size=1024).batch(BATCH_SIZE)
     
     # Prepare network
-    model = make_model(input_shape=(IMAGE_SIZE, IMAGE_SIZE, N_CHANNELS))
+    model = make_model_dense()
     loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+    optimizer = tf.optimizers.SGD(LEARNING_RATE)
     
     # Set constants for this loop
     epochs = 10
     sigma = 5.0
-    max_eps = 1
-    max_delta = 1e-03
+    max_eps = 4.0
+    max_delta = 1e-05
     eps_delta = EpsDelta(np.inf, 1.0)
-    target_eps = [0.125, 0.25, 0.5, 1, 2, 4, 8]
-    #target_delta = [1e-5]
+    target_eps = [4.0]
+    target_delta = [1e-05]
     total_examples = len(x_train)
-    use_privacy = True
+    use_privacy = False
     
     # Create objects
     accountant = GaussianMomentsAccountant(total_examples)
     sanitizer = GaussianSanitizer()
-    dp_opt = DPSGD_Optimizer(0.01, accountant, sanitizer)
     train_acc_metric = tf.keras.metrics.SparseCategoricalAccuracy()
     valid_acc_metric = tf.keras.metrics.SparseCategoricalAccuracy()
     train_scores, valid_scores = list(), list()
     train_loss, valid_loss = list(), list()
-    
+
     # Run training loop
     for epoch in range(epochs):
-        print(f"\nStart of epoch {epoch}")
+        print(f'Epoch: {epoch + 1}')
         start_time = time.time()
-        number_steps = int(total_examples / BATCH_SIZE)
-        step_max_eps = max_eps / number_steps
         for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
-            with tf.GradientTape() as tape:
-                logits = model(x_batch_train, training=True)
-                loss_value = loss_fn(y_batch_train, logits)
-            if int(step) == 0:
-                train_loss.append(loss_value.numpy()) # Save loss for this epoch
-            gradients = tape.gradient(loss_value, model.trainable_weights)
+            total_loss = 0
+            train_vars = model.trainable_variables
+            accum_gradient = [tf.zeros_like(this_var) for this_var in train_vars]
+            num_samples = len(x_batch_train)
             spent_eps_deltas = EpsDelta(0, 0)
-            if use_privacy:
-                while spent_eps_deltas.spent_eps <= step_max_eps and spent_eps_deltas.spent_delta <= max_delta:
-                    dp_opt.minimize(gradients, model.trainable_weights, eps_delta, sigma)
-                    spent_eps_deltas = accountant.get_privacy_spent(target_eps=target_eps)[0]
-            else:
-                tf.optimizers.SGD().apply_gradients(zip(gradients, model.trainable_weights))
-            train_acc_metric.update_state(y_batch_train, logits)    
+            for i in range(num_samples):
+                sample = x_batch_train[i]
+                with tf.GradientTape() as tape:
+                    prediction = model(sample)
+                    loss_value = loss_fn(y_true=y_batch_train[i], y_pred=prediction[1])
+                    train_acc_metric.update_state(y_batch_train[i], prediction)
+                    total_loss += loss_value
+                gradients = tape.gradient(loss_value, train_vars)
+                if use_privacy:
+                    while spent_eps_deltas.spent_eps <= max_eps and spent_eps_deltas.spent_delta <= max_delta:
+                        accountant.accumulate_privacy_spending(eps_delta, sigma, BATCH_SIZE)
+                        gradients = sanitizer.sanitize(gradients, sigma)
+                        spent_eps_deltas = accountant.get_privacy_spent(target_eps=target_eps)[0]
+                accum_gradient = [(acum_grad+grad) for acum_grad, grad in zip(accum_gradient, gradients)]
+            accum_gradient = [this_grad/num_samples for this_grad in accum_gradient]
+            optimizer.apply_gradients(zip(accum_gradient, train_vars))
             if step % 200 == 0:
-                print(f"Training loss at step: {step}: {float(loss_value)}")
                 print(f"So far trained on {(step+1) * 64} samples")
-                print(f"Privacy spent: eps {spent_eps_deltas.spent_eps}, delta {spent_eps_deltas.spent_delta}")    
-        
-        print(f"Privacy spent: eps {spent_eps_deltas.spent_eps}, delta {spent_eps_deltas.spent_delta}")    
+                if use_privacy:
+                    print(f"Privacy spent: eps {spent_eps_deltas.spent_eps}, delta {spent_eps_deltas.spent_delta}")    
+
         train_acc = train_acc_metric.result()
         train_scores.append(train_acc)
         print(f"Training acc over epoch: {float(train_acc)}")
@@ -126,8 +119,9 @@ def main():
         
         batch_valid_loss = list()
         for x_batch_valid, y_batch_valid in valid_dataset:
+            break
             valid_logits = model(x_batch_valid, training=False)
-            valid_acc_metric.update_state(y_batch_valid, valid_logits)
+            valid_acc_metric.update_state(y_batch_valid, valid_logits[2])
             batch_valid_loss.append(loss_fn(y_batch_valid, valid_logits))
         valid_loss.append(np.mean(batch_valid_loss))
         
