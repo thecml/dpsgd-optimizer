@@ -42,6 +42,14 @@ def make_model(input_shape):
 	model.add(tf.keras.layers.Dense(10, activation='softmax'))
 	return model
 
+def make_model_normal(input_shape):
+    model = tf.keras.models.Sequential([
+        tf.keras.layers.Flatten(input_shape=input_shape),
+        tf.keras.layers.Dense(128,activation='relu'),
+        tf.keras.layers.Dense(10, activation='softmax')
+    ])
+    return model
+
 def main():
     # Prepare the training and test dataset.
     (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
@@ -66,12 +74,12 @@ def main():
     
     # Set constants for this loop
     epochs = 10
-    sigma = 4.0
+    sigma = 5.0
     max_eps = 1
     max_delta = 1e-03
     eps_delta = EpsDelta(np.inf, 1.0)
     target_eps = [0.125, 0.25, 0.5, 1, 2, 4, 8]
-    target_delta = [1e-1]
+    #target_delta = [1e-5]
     total_examples = len(x_train)
     use_privacy = True
     
@@ -101,7 +109,7 @@ def main():
             if use_privacy:
                 while spent_eps_deltas.spent_eps <= step_max_eps and spent_eps_deltas.spent_delta <= max_delta:
                     dp_opt.minimize(gradients, model.trainable_weights, eps_delta, sigma)
-                    spent_eps_deltas = accountant.get_privacy_spent(target_deltas=target_delta)[0]
+                    spent_eps_deltas = accountant.get_privacy_spent(target_eps=target_eps)[0]
             else:
                 tf.optimizers.SGD().apply_gradients(zip(gradients, model.trainable_weights))
             train_acc_metric.update_state(y_batch_train, logits)    
