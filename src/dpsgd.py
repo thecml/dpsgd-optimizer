@@ -91,18 +91,19 @@ def main():
             num_samples = len(x_batch_train)
             for j in range(num_samples):
                 sample = x_batch_train[j]
+                sample = np.reshape(sample, (-1, IMAGE_SIZE*IMAGE_SIZE))
                 with tf.GradientTape() as tape:
                     logits = model(sample, training=True)
                     loss_value = loss_fn(y_batch_train[j], logits)
                     train_acc_metric.update_state(y_batch_train, logits)
                 total_loss += loss_value
                 gradients = tape.gradient(loss_value, train_vars)
-                accum_gradient = [(acum_grad+grad) for acum_grad, grad in zip(accum_gradient, gradients)]
                 if use_privacy:
                     while spent_eps_deltas.spent_eps <= max_eps and spent_eps_deltas.spent_delta <= max_delta:
                         accountant.accumulate_privacy_spending(eps_delta, sigma, BATCH_SIZE)
                         gradients = sanitizer.sanitize(gradients, sigma)
                         spent_eps_deltas = accountant.get_privacy_spent(target_eps=target_eps)[0]
+                accum_gradient = [(acum_grad+grad) for acum_grad, grad in zip(accum_gradient, gradients)]
             accum_gradient = [this_grad/num_samples for this_grad in accum_gradient]
             optimizer.apply_gradients(zip(accum_gradient, train_vars))
             if step % 200 == 0:
