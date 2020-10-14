@@ -9,7 +9,7 @@ from accountant import GaussianMomentsAccountant
 EpsDelta = collections.namedtuple("EpsDelta", ["spent_eps", "spent_delta"])
 IMAGE_SIZE = 28
 N_CHANNELS = 1
-BATCH_SIZE = 1
+BATCH_SIZE = 64
 LEARNING_RATE = 0.05
 C = 4.0
 
@@ -87,18 +87,24 @@ def main():
             total_loss = 0
             train_vars = model.trainable_variables
             spent_eps_deltas = EpsDelta(0, 0)
-            with tf.GradientTape() as tape:
-                logits = model(x_batch_train, training=True)
-                loss_value = loss_fn(y_batch_train, logits)
-                train_acc_metric.update_state(y_batch_train, logits)
+            accum_gradient = [tf.zeros_like(this_var) for this_var in train_vars]
+            num_samples = len(x_batch_train)
+            for j in range(num_samples):
+                sample = x_batch_train[j]
+                with tf.GradientTape() as tape:
+                    logits = model(sample, training=True)
+                    loss_value = loss_fn(y_batch_train[j], logits)
+                    train_acc_metric.update_state(y_batch_train, logits)
                 total_loss += loss_value
-            gradients = tape.gradient(loss_value, train_vars)
-            if use_privacy:
-                while spent_eps_deltas.spent_eps <= max_eps and spent_eps_deltas.spent_delta <= max_delta:
-                    accountant.accumulate_privacy_spending(eps_delta, sigma, BATCH_SIZE)
-                    gradients = sanitizer.sanitize(gradients, sigma)
-                    spent_eps_deltas = accountant.get_privacy_spent(target_eps=target_eps)[0]
-            optimizer.apply_gradients(zip(gradients, train_vars))
+                gradients = tape.gradient(loss_value, train_vars)
+                accum_gradient = [(acum_grad+grad) for acum_grad, grad in zip(accum_gradient, gradients)]
+                if use_privacy:
+                    while spent_eps_deltas.spent_eps <= max_eps and spent_eps_deltas.spent_delta <= max_delta:
+                        accountant.accumulate_privacy_spending(eps_delta, sigma, BATCH_SIZE)
+                        gradients = sanitizer.sanitize(gradients, sigma)
+                        spent_eps_deltas = accountant.get_privacy_spent(target_eps=target_eps)[0]
+            accum_gradient = [this_grad/num_samples for this_grad in accum_gradient]
+            optimizer.apply_gradients(zip(accum_gradient, train_vars))
             if step % 200 == 0:
                 num_samples = (step+1) * BATCH_SIZE
                 epoch_loss = total_loss / num_samples
