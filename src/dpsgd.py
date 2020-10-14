@@ -34,18 +34,16 @@ def make_model_cnn(input_shape):
 
 def make_model_dense():
     model = tf.keras.models.Sequential()
-    model.add(tf.keras.Input(shape=(IMAGE_SIZE*IMAGE_SIZE, N_CHANNELS)))
-    model.add(tf.keras.layers.Dense(128, activation='relu'))
+    model.add(tf.keras.Input(shape=(IMAGE_SIZE*IMAGE_SIZE,)))
+    model.add(tf.keras.layers.Dense(1, activation='relu'))
     model.add(tf.keras.layers.Dense(10, activation='softmax'))
     return model
 
 def main():
     # Prepare the training and test dataset.
-    (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
-    x_train = np.reshape(x_train, (-1, IMAGE_SIZE*IMAGE_SIZE, N_CHANNELS))
+    (x_train, y_train), _ = tf.keras.datasets.mnist.load_data()
+    x_train = np.reshape(x_train, (-1, IMAGE_SIZE*IMAGE_SIZE))
     x_train = x_train.astype("float32") / 255.0
-    x_test = np.reshape(x_test, (-1, IMAGE_SIZE*IMAGE_SIZE, N_CHANNELS))
-    x_test = x_test.astype("float32") / 255.0
 
     # Prepare valid dataset.
     x_val = x_train[-10000:]
@@ -88,16 +86,17 @@ def main():
         for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
             total_loss = 0
             train_vars = model.trainable_variables
+            spent_eps_deltas = EpsDelta(0, 0)
             accum_gradient = [tf.zeros_like(this_var) for this_var in train_vars]
             num_samples = len(x_batch_train)
-            spent_eps_deltas = EpsDelta(0, 0)
-            for i in range(num_samples):
-                sample = x_batch_train[i]
+            for j in range(num_samples):
+                sample = x_batch_train[j]
+                sample = np.reshape(sample, (-1, IMAGE_SIZE*IMAGE_SIZE))
                 with tf.GradientTape() as tape:
-                    prediction = model(sample)
-                    loss_value = loss_fn(y_true=y_batch_train[i], y_pred=prediction[1])
-                    train_acc_metric.update_state(y_batch_train[i], prediction)
-                    total_loss += loss_value
+                    logits = model(sample, training=True)
+                    loss_value = loss_fn(y_batch_train[j], logits)
+                    train_acc_metric.update_state(y_batch_train, logits)
+                total_loss += loss_value
                 gradients = tape.gradient(loss_value, train_vars)
                 if use_privacy:
                     while spent_eps_deltas.spent_eps <= max_eps and spent_eps_deltas.spent_delta <= max_delta:
@@ -108,7 +107,9 @@ def main():
             accum_gradient = [this_grad/num_samples for this_grad in accum_gradient]
             optimizer.apply_gradients(zip(accum_gradient, train_vars))
             if step % 200 == 0:
-                print(f"So far trained on {(step+1) * 64} samples")
+                num_samples = (step+1) * BATCH_SIZE
+                epoch_loss = total_loss / num_samples
+                print(f"So far trained on {num_samples} samples, epoch loss: {epoch_loss}")
                 if use_privacy:
                     print(f"Privacy spent: eps {spent_eps_deltas.spent_eps}, delta {spent_eps_deltas.spent_delta}")    
 
