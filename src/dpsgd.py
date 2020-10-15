@@ -35,7 +35,7 @@ def make_model_cnn(input_shape):
 def make_model_dense():
     model = tf.keras.models.Sequential()
     model.add(tf.keras.Input(shape=(IMAGE_SIZE*IMAGE_SIZE,)))
-    model.add(tf.keras.layers.Dense(1, activation='relu'))
+    model.add(tf.keras.layers.Dense(128, activation='relu'))
     model.add(tf.keras.layers.Dense(10, activation='softmax'))
     return model
 
@@ -81,7 +81,6 @@ def main():
 
     # Run training loop
     for epoch in range(epochs):
-        print(f'Epoch: {epoch + 1}')
         start_time = time.time()
         for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
             total_loss = 0
@@ -89,13 +88,13 @@ def main():
             spent_eps_deltas = EpsDelta(0, 0)
             accum_gradient = [tf.zeros_like(this_var) for this_var in train_vars]
             num_samples = len(x_batch_train)
-            for j in range(num_samples):
-                sample = x_batch_train[j]
+            for sample_idx in range(num_samples):
+                sample = x_batch_train[sample_idx]
                 sample = np.reshape(sample, (-1, IMAGE_SIZE*IMAGE_SIZE))
                 with tf.GradientTape() as tape:
                     logits = model(sample, training=True)
-                    loss_value = loss_fn(y_batch_train[j], logits)
-                    train_acc_metric.update_state(y_batch_train, logits)
+                    loss_value = loss_fn(y_batch_train[sample_idx], logits)
+                    train_acc_metric.update_state(y_batch_train[sample_idx], logits)
                 total_loss += loss_value
                 gradients = tape.gradient(loss_value, train_vars)
                 if use_privacy:
@@ -109,7 +108,7 @@ def main():
             if step % 200 == 0:
                 num_samples = (step+1) * BATCH_SIZE
                 epoch_loss = total_loss / num_samples
-                print(f"So far trained on {num_samples} samples, epoch loss: {epoch_loss}")
+                print(f"Epoch {epoch + 1}, so far trained on {num_samples} samples, epoch loss: {epoch_loss}")
                 if use_privacy:
                     print(f"Privacy spent: eps {spent_eps_deltas.spent_eps}, delta {spent_eps_deltas.spent_delta}")    
 
@@ -120,9 +119,8 @@ def main():
         
         batch_valid_loss = list()
         for x_batch_valid, y_batch_valid in valid_dataset:
-            break
             valid_logits = model(x_batch_valid, training=False)
-            valid_acc_metric.update_state(y_batch_valid, valid_logits[2])
+            valid_acc_metric.update_state(y_batch_valid, valid_logits)
             batch_valid_loss.append(loss_fn(y_batch_valid, valid_logits))
         valid_loss.append(np.mean(batch_valid_loss))
         
@@ -131,27 +129,6 @@ def main():
         valid_scores.append(valid_acc)
         print("Validation acc: %.4f" % (float(valid_acc),))
         print("Time taken: %.2fs" % (time.time() - start_time))
-    
-    # Show training loss
-    epochs_range = range(1, len(train_loss)+1)
-    plt.figure(figsize=(8,6))
-    plt.plot(epochs_range, train_loss, color='blue', label='Training loss')
-    plt.plot(epochs_range, valid_loss, color='red', label='Validation loss')
-    plt.title('Training and validation loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.show()
-    
-    # Show validation loss
-    plt.figure(figsize=(8,6))
-    plt.plot(epochs_range, train_scores, color='blue', label='Training accuracy')
-    plt.plot(epochs_range, valid_scores, color='red', label='Validation accuracy')
-    plt.title('Training and validation accuracy')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.show()
     
 if __name__ == "__main__":
     main()
