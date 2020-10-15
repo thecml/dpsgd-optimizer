@@ -1,3 +1,18 @@
+# Copyright 2016 The TensorFlow Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+
 from __future__ import division
 
 import abc
@@ -9,6 +24,76 @@ import numpy
 import tensorflow as tf
 
 EpsDelta = collections.namedtuple("EpsDelta", ["spent_eps", "spent_delta"])
+
+class AmortizedAccountant(object):
+  """Keep track of privacy spending in an amortized way.
+  AmortizedAccountant accumulates the privacy spending by assuming
+  all the examples are processed uniformly at random so the spending is
+  amortized among all the examples. And we assume that we use Gaussian noise
+  so the accumulation is on eps^2 and delta, using advanced composition.
+  """
+
+  def __init__(self, total_examples):
+    """Initialization. Currently only support amortized tracking.
+    Args:
+      total_examples: total number of examples.
+    """
+
+    assert total_examples > 0
+    self._total_examples = total_examples
+    self._eps_squared_sum = tf.Variable(tf.zeros([1]), trainable=False,
+                                        name="eps_squared_sum")
+    self._delta_sum = tf.Variable(tf.zeros([1]), trainable=False,
+                                  name="delta_sum")
+
+  def accumulate_privacy_spending(self, eps_delta, unused_sigma,
+                                  num_examples):
+    """Accumulate the privacy spending.
+    Currently only support approximate privacy. Here we assume we use Gaussian
+    noise on randomly sampled batch so we get better composition: 1. the per
+    batch privacy is computed using privacy amplication via sampling bound;
+    2. the composition is done using the composition with Gaussian noise.
+    TODO(liqzhang) Add a link to a document that describes the bounds used.
+    Args:
+      eps_delta: EpsDelta pair which can be tensors.
+      unused_sigma: the noise sigma. Unused for this accountant.
+      num_examples: the number of examples involved.
+    Returns:
+      a TensorFlow operation for updating the privacy spending.
+    """
+
+    eps, delta = eps_delta
+    with tf.control_dependencies(
+        [tf.Assert(tf.greater(delta, 0),
+                   ["delta needs to be greater than 0"])]):
+      amortize_ratio = (tf.cast(num_examples, tf.float32) * 1.0 /
+                        self._total_examples)
+      # Use privacy amplification via sampling bound.
+      # See Lemma 2.2 in http://arxiv.org/pdf/1405.7085v2.pdf
+      # TODO(liqzhang) Add a link to a document with formal statement
+      # and proof.
+      amortize_eps = tf.reshape(tf.math.log(1.0 + amortize_ratio * (
+          tf.exp(eps) - 1.0)), [1])
+      amortize_delta = tf.reshape(amortize_ratio * delta, [1])
+      return tf.group(*[tf.compat.v1.assign_add(self._eps_squared_sum,
+                                      tf.square(amortize_eps)),
+                        tf.compat.v1.assign_add(self._delta_sum, amortize_delta)])
+
+  def get_privacy_spent(self, target_eps=None):
+    """Report the spending so far.
+    Args:
+      sess: the session to run the tensor.
+      target_eps: the target epsilon. Unused.
+    Returns:
+      the list containing a single EpsDelta, with values as Python floats (as
+      opposed to numpy.float64). This is to be consistent with
+      MomentAccountant which can return a list of (eps, delta) pair.
+    """
+
+    # pylint: disable=unused-argument
+    unused_target_eps = target_eps
+    eps_squared_sum, delta_sum = ([self._eps_squared_sum, self._delta_sum])
+    return [EpsDelta(math.sqrt(eps_squared_sum), float(delta_sum))]
 
 class MomentsAccountant(object):
   """Privacy accountant which keeps track of moments of privacy loss.

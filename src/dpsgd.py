@@ -4,17 +4,19 @@ import collections
 import os
 import time
 import matplotlib.pyplot as plt
-from accountant import GaussianMomentsAccountant
+from accountant import *
+from sanitizer import *
 
 EpsDelta = collections.namedtuple("EpsDelta", ["spent_eps", "spent_delta"])
 IMAGE_SIZE = 28
 N_CHANNELS = 1
 BATCH_SIZE = 64
 LEARNING_RATE = 0.05
-C = 4.0
+L2NORM_BOUND = 4.0
 
-class GaussianSanitizer(object):
-  def sanitize(gradients, sigma):
+class AmortizedGaussianSanitizerCustom(object):
+  def sanitize(self, gradients, sigma):
+      C = 0
       gradients = [tf.clip_by_norm(g, clip_norm=C) for g in gradients]
       gradients += np.random.normal(0, (sigma ** 2)*(C ** 2), len(gradients))
       return gradients
@@ -63,17 +65,19 @@ def main():
     # Set constants for this loop
     epochs = 10
     sigma = 5.0
-    max_eps = 4.0
-    max_delta = 1e-05
-    eps_delta = EpsDelta(np.inf, 1.0)
-    target_eps = [4.0]
-    target_delta = [1e-05]
-    total_examples = len(x_train)
-    use_privacy = False
+    eps = 1.0
+    delta = 1e-5
+    max_eps = 8.0
+    max_delta = 1e-6
+    target_eps = [8]
+    target_delta = [1e-5]
+    total_samples = len(x_train)
+    spent_eps_deltas = EpsDelta(0, 0)
+    use_privacy = True
     
     # Create objects
-    accountant = GaussianMomentsAccountant(total_examples)
-    sanitizer = GaussianSanitizer()
+    accountant = AmortizedAccountant(total_samples)
+    sanitizer = AmortizedGaussianSanitizer(accountant, [L2NORM_BOUND / BATCH_SIZE, True])
     train_acc_metric = tf.keras.metrics.SparseCategoricalAccuracy()
     valid_acc_metric = tf.keras.metrics.SparseCategoricalAccuracy()
     train_scores, valid_scores = list(), list()
@@ -85,10 +89,10 @@ def main():
         for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
             total_loss = 0
             train_vars = model.trainable_variables
-            spent_eps_deltas = EpsDelta(0, 0)
             accum_gradient = [tf.zeros_like(this_var) for this_var in train_vars]
             num_samples = len(x_batch_train)
             for sample_idx in range(num_samples):
+                spent_eps_deltas = EpsDelta(0, 0) #reset counter
                 sample = x_batch_train[sample_idx]
                 sample = np.reshape(sample, (-1, IMAGE_SIZE*IMAGE_SIZE))
                 with tf.GradientTape() as tape:
@@ -98,10 +102,15 @@ def main():
                 total_loss += loss_value
                 gradients = tape.gradient(loss_value, train_vars)
                 if use_privacy:
+                    eps_delta = EpsDelta(eps, delta)
                     while spent_eps_deltas.spent_eps <= max_eps and spent_eps_deltas.spent_delta <= max_delta:
-                        accountant.accumulate_privacy_spending(eps_delta, sigma, BATCH_SIZE)
-                        gradients = sanitizer.sanitize(gradients, sigma)
+                        sanitized_grads = []
+                        for px_grad in gradients:
+                            sanitized_grad = sanitizer.sanitize(px_grad, eps_delta, sigma, num_examples=1)
+                            sanitized_grads.append(sanitized_grad)
                         spent_eps_deltas = accountant.get_privacy_spent(target_eps=target_eps)[0]
+                        print(spent_eps_deltas)
+                        gradients = sanitized_grads
                 accum_gradient = [(acum_grad+grad) for acum_grad, grad in zip(accum_gradient, gradients)]
             accum_gradient = [this_grad/num_samples for this_grad in accum_gradient]
             optimizer.apply_gradients(zip(accum_gradient, train_vars))
@@ -110,25 +119,22 @@ def main():
                 epoch_loss = total_loss / num_samples
                 print(f"Epoch {epoch + 1}, so far trained on {num_samples} samples, epoch loss: {epoch_loss}")
                 if use_privacy:
-                    print(f"Privacy spent: eps {spent_eps_deltas.spent_eps}, delta {spent_eps_deltas.spent_delta}")    
-
+                    print(f"Privacy spent: eps {spent_eps_deltas.spent_eps}, delta {spent_eps_deltas.spent_delta}")
         train_acc = train_acc_metric.result()
         train_scores.append(train_acc)
         print(f"Training acc over epoch: {float(train_acc)}")
         train_acc_metric.reset_states()
-        
         batch_valid_loss = list()
         for x_batch_valid, y_batch_valid in valid_dataset:
             valid_logits = model(x_batch_valid, training=False)
             valid_acc_metric.update_state(y_batch_valid, valid_logits)
             batch_valid_loss.append(loss_fn(y_batch_valid, valid_logits))
         valid_loss.append(np.mean(batch_valid_loss))
-        
         valid_acc = valid_acc_metric.result()
         valid_acc_metric.reset_states()
         valid_scores.append(valid_acc)
         print("Validation acc: %.4f" % (float(valid_acc),))
         print("Time taken: %.2fs" % (time.time() - start_time))
-    
+        
 if __name__ == "__main__":
     main()

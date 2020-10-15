@@ -17,7 +17,7 @@ def BatchClipByL2norm(t, upper_bound, name=None):
     return clipped_t
 
 def AddGaussianNoise(t, sigma, name=None):
-  noisy_t = t + tf.random_normal(tf.shape(t), stddev=sigma)
+  noisy_t = t + tf.random.normal(tf.shape(t), stddev=sigma)
   return noisy_t
 
 def GetTensorOpName(x):
