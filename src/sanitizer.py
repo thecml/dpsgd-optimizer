@@ -102,7 +102,6 @@ class AmortizedGaussianSanitizer(object):
           (tensor_name in self._options)):
         l2norm_bound, clip = self._options[tensor_name]
     if clip:
-      #x = utils.BatchClipByL2norm(x, l2norm_bound)
       saved_shape = tf.shape(x)
       x = [tf.clip_by_norm(g, clip_norm=l2norm_bound) for g in x]
       x = tf.reshape(x, saved_shape)
@@ -113,8 +112,7 @@ class AmortizedGaussianSanitizer(object):
       privacy_accum_op = self._accountant.accumulate_privacy_spending(
           eps_delta, sigma, num_examples)
       with tf.control_dependencies([privacy_accum_op]):
-        saned_x = utils.AddGaussianNoise(x,
-                                         sigma * l2norm_bound)
+        saned_x = utils.AddGaussianNoise(x, sigma * l2norm_bound)
     else:
       saned_x = tf.reduce_sum(x, 0)
     return saned_x

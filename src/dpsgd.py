@@ -68,7 +68,7 @@ def main():
     eps = 1.0
     delta = 1e-5
     max_eps = 8.0
-    max_delta = 1e-6
+    max_delta = 1e-5
     target_eps = [8]
     target_delta = [1e-5]
     total_samples = len(x_train)
@@ -89,7 +89,6 @@ def main():
         for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
             total_loss = 0
             train_vars = model.trainable_variables
-            accum_gradient = [tf.zeros_like(this_var) for this_var in train_vars]
             num_samples = len(x_batch_train)
             for sample_idx in range(num_samples):
                 spent_eps_deltas = EpsDelta(0, 0) #reset counter
@@ -111,15 +110,16 @@ def main():
                         spent_eps_deltas = accountant.get_privacy_spent(target_eps=target_eps)[0]
                         print(spent_eps_deltas)
                         gradients = sanitized_grads
-                accum_gradient = [(acum_grad+grad) for acum_grad, grad in zip(accum_gradient, gradients)]
-            accum_gradient = [this_grad/num_samples for this_grad in accum_gradient]
-            optimizer.apply_gradients(zip(accum_gradient, train_vars))
+                        optimizer.apply_gradients(zip(gradients, train_vars))
+                    print(f"Completed adding noise for sample {sample_idx}")
+            # Clear spent eps/delta 
             if step % 200 == 0:
                 num_samples = (step+1) * BATCH_SIZE
                 epoch_loss = total_loss / num_samples
                 print(f"Epoch {epoch + 1}, so far trained on {num_samples} samples, epoch loss: {epoch_loss}")
                 if use_privacy:
                     print(f"Privacy spent: eps {spent_eps_deltas.spent_eps}, delta {spent_eps_deltas.spent_delta}")
+                    
         train_acc = train_acc_metric.result()
         train_scores.append(train_acc)
         print(f"Training acc over epoch: {float(train_acc)}")
