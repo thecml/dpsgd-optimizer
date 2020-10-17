@@ -76,7 +76,7 @@ def main():
     
     # Create objects
     accountant = AmortizedAccountant(total_samples)
-    sanitizer = AmortizedGaussianSanitizer(accountant, [L2NORM_BOUND / BATCH_SIZE, True])
+    sanitizer = AmortizedGaussianSanitizer(accountant, [L2NORM_BOUND, True])
     train_acc_metric = tf.keras.metrics.SparseCategoricalAccuracy()
     valid_acc_metric = tf.keras.metrics.SparseCategoricalAccuracy()
     train_scores, valid_scores = list(), list()
@@ -102,23 +102,19 @@ def main():
                 sanitized_grads = []
                 eps_delta = EpsDelta(eps, delta)
                 for px_grad in gradients:
-                    sanitized_grad = px_grad
-                    #sanitizer.sanitize(px_grad, eps_delta, sigma, num_examples=1)
+                    sanitized_grad = sanitizer.sanitize(px_grad, eps_delta, num_examples=1)
                     sanitized_grads.append(sanitized_grad)
                 spent_eps_deltas = accountant.get_privacy_spent(target_eps=target_eps)[0]
                 optimizer.apply_gradients(zip(sanitized_grads, train_vars))
-                print(f"Completed adding noise for sample {sample_idx+(step)*BATCH_SIZE}, noise: {spent_eps_deltas}")
                 if (spent_eps_deltas.spent_eps > max_eps or spent_eps_deltas.spent_delta > max_delta):
                     raise Exception("You've exceeded the budget, bad luck:)")
                 
             num_samples = (step+1) * BATCH_SIZE
-            epoch_loss = total_loss / num_samples
-            print(f"Epoch {epoch + 1}, so far trained on {num_samples} samples, epoch loss: {epoch_loss}")
-            print(f"Privacy spent: eps {spent_eps_deltas.spent_eps}, delta {spent_eps_deltas.spent_delta}")
-                    
+            batch_loss = total_loss / num_samples
+            spent_eps = spent_eps_deltas.spent_eps
+            spent_delta = spent_eps_deltas.spent_delta
             train_acc = train_acc_metric.result()
             train_scores.append(train_acc)
-            print(f"Training acc over epoch: {float(train_acc)}")
             train_acc_metric.reset_states()
             batch_valid_loss = list()
             for x_batch_valid, y_batch_valid in valid_dataset:
@@ -129,8 +125,10 @@ def main():
             valid_acc = valid_acc_metric.result()
             valid_acc_metric.reset_states()
             valid_scores.append(valid_acc)
-            print("Validation acc: %.4f" % (float(valid_acc),))
-            print("Time taken: %.2fs" % (time.time() - start_time))
+            time_taken = time.time() - start_time
+            print(f"Epoch {epoch + 1}, trained on {num_samples} samples, batch loss: {batch_loss:{2}.{4}}, " +
+                   f"eps: {spent_eps:{2}.{4}}, delta: {spent_delta:{2}.{4}}, training acc: {train_acc:{2}.{4}}, " +
+                   f"validation acc: {valid_acc:{2}.{4}}, time taken: {time_taken:{2}.{4}}")
         
 if __name__ == "__main__":
     main()

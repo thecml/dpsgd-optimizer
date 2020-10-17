@@ -93,7 +93,7 @@ class AmortizedGaussianSanitizer(object):
         #   Dwork and Roth, The Algorithmic Foundations of Differential
         #   Privacy, Appendix A.
         #   http://www.cis.upenn.edu/~aaroth/Papers/privacybook.pdf
-        sigma = tf.sqrt(2.0 * tf.log(1.25 / delta)) / eps
+        sigma = tf.sqrt(2.0 * tf.math.log(1.25 / delta)) / eps
 
     l2norm_bound, clip = option
     if l2norm_bound is None:
@@ -102,10 +102,8 @@ class AmortizedGaussianSanitizer(object):
           (tensor_name in self._options)):
         l2norm_bound, clip = self._options[tensor_name]
     if clip:
-      saved_shape = tf.shape(x)
-      x = [tf.clip_by_norm(g, clip_norm=l2norm_bound) for g in x]
-      x = tf.reshape(x, saved_shape)
-  
+      x = tf.clip_by_norm(x, clip_norm=l2norm_bound)
+    
     if add_noise:
       if num_examples is None:
         num_examples = tf.slice(tf.shape(x), [0], [1])
