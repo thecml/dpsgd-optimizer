@@ -1,4 +1,4 @@
-# Differentially Private Stochastic Gradient Descent (TF2.0)
+# Differentially Private Stochastic Gradient Descent
 
 This is partly the reproduction of the paper of [Deep Learning with Differential Privacy](https://arxiv.org/abs/1607.00133)   
 Implementation is done in Tensorflow 2.3.
