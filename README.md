@@ -1,6 +1,6 @@
 # Differentially Private Stochastic Gradient Descent
 
-This is a implementation of a differentially private SGD optimizer described in the [Deep Learning with Differential Privacy](https://arxiv.org/abs/1607.00133) paper using an amortized accountant to keep track of used privacy. AmortizedAccountant accumulates the privacy spending by assuming all the examples are processed uniformly at random, so the spending is amortized among all the examples. Implementation is done in Tensorflow 2.3.
+This is a implementation of the differentially private SGD optimizer described in the [Deep Learning with Differential Privacy](https://arxiv.org/abs/1607.00133) paper using an amortized accountant to keep track of used privacy. AmortizedAccountant accumulates the privacy spending by assuming all the examples are processed uniformly at random, so the spending is amortized among all the examples. Implementation is done in Tensorflow 2.3.
 
 Note: The scripts will be slow without CUDA enabled.
 
@@ -28,7 +28,7 @@ Table 2. results of 50 epochs training with the learning rate of 0.01
 
 
 ## Ackonwledgements
-Acknowledgements given to Abadi et al.
+Acknowledgements given to [marcotcr](https://github.com/marcotcr/tf-models).
 
 ## References
 Martín Abadi, Andy Chu, Ian Goodfellow, H. Brendan McMahan, Ilya Mironov, Kunal Talwar, Li Zhang. Deep Learning with Differential Privacy. Proceedings of the 2016 ACM SIGSAC Conference on Computer and Communications Security (ACM CCS), pp. 308-318, 2016.
