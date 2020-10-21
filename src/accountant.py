@@ -53,7 +53,6 @@ class AmortizedAccountant(object):
     noise on randomly sampled batch so we get better composition: 1. the per
     batch privacy is computed using privacy amplication via sampling bound;
     2. the composition is done using the composition with Gaussian noise.
-    TODO(liqzhang) Add a link to a document that describes the bounds used.
     Args:
       eps_delta: EpsDelta pair which can be tensors.
       unused_sigma: the noise sigma. Unused for this accountant.

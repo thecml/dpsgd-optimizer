@@ -14,11 +14,12 @@ BATCH_SIZE = 64
 LEARNING_RATE = 0.01
 L2NORM_BOUND = 4.0
 SIGMA = 4.0
+N_CHANNELS = 1
         
 def main():
     # Prepare training and test dataset.
     (X_train, y_train), _ = tf.keras.datasets.mnist.load_data()
-    X_train = np.reshape(X_train, (-1, IMAGE_SIZE*IMAGE_SIZE))
+    X_train = np.reshape(X_train, (-1, IMAGE_SIZE, IMAGE_SIZE))
     X_train = X_train.astype("float32") / 255.0
     X_valid = X_train[-10000:]
     y_valid = y_train[-10000:]
@@ -26,24 +27,24 @@ def main():
     y_train = y_train[:-10000]
     
     # Prepare network
-    model = make_dense_model()
+    model = make_cnn_model((IMAGE_SIZE, IMAGE_SIZE, N_CHANNELS))
     loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     optimizer = tf.optimizers.SGD(LEARNING_RATE)
 
     # Set constants for this loop
     eps = 1.0
     delta = 1e-7
-    max_eps = 32.0 #8.0
-    max_delta = 1e-5
+    max_eps = 64.0 #8.0
+    max_delta = 1e-3
     target_eps = [16.0] #8.0
-    target_delta = [1e-5]
-    total_samples = len(X_train)
+    target_delta = [1e-5] #unused
     
     # Create objects
-    accountant = AmortizedAccountant(total_samples)
+    accountant = AmortizedAccountant(len(X_train))
     sanitizer = AmortizedGaussianSanitizer(accountant, [L2NORM_BOUND / BATCH_SIZE, True])
     mean_loss = tf.keras.metrics.Mean()
-    metrics = [tf.keras.metrics.SparseCategoricalAccuracy()]
+    train_metrics = [tf.keras.metrics.SparseCategoricalAccuracy()]
+    valid_metrics = [tf.keras.metrics.SparseCategoricalAccuracy()]
     
     # Run training loop
     start_time = time.time()
@@ -80,32 +81,39 @@ def main():
             else:
                 optimizer.apply_gradients(zip(gradients, model.trainable_variables))
             mean_loss(loss)
-            for metric in metrics:
+            for metric in train_metrics:
                 metric(y_batch, y_pred)
             if step % 200 == 0:
+                time_taken = time.time() - start_time
+                for metric in valid_metrics:
+                    X_batch, y_batch = random_batch(X_valid, y_valid)
+                    y_pred = model(X_batch, training=False)
+                    metric(y_batch, y_pred)
                 if use_privacy:
-                    print_status_bar(step * BATCH_SIZE, len(y_train), mean_loss, metrics, spent_eps_delta) 
+                        print_status_bar(step * BATCH_SIZE, len(y_train), mean_loss, time_taken,
+                                         train_metrics + valid_metrics, spent_eps_delta,) 
                 else:
-                    print_status_bar(step * BATCH_SIZE, len(y_train), mean_loss, metrics)
+                    print_status_bar(step * BATCH_SIZE, len(y_train), mean_loss, time_taken,
+                                     train_metrics + valid_metrics)
             if should_terminate:
                 break
-
+            
 def make_cnn_model(input_shape):
-	model = tf.keras.models.Sequential()
-	model.add(tf.keras.layers.Conv2D(32, (3, 3), activation='relu',
-                                  kernel_initializer='he_uniform', input_shape=input_shape))
-	model.add(tf.keras.layers.BatchNormalization())
-	model.add(tf.keras.layers.MaxPooling2D((2, 2)))
-	model.add(tf.keras.layers.Flatten())
-	model.add(tf.keras.layers.Dense(100, activation='relu', kernel_initializer='he_uniform'))
-	model.add(tf.keras.layers.BatchNormalization())
-	model.add(tf.keras.layers.Dropout(0.5))
-	model.add(tf.keras.layers.Dense(10, activation='softmax'))
-	return model
-
-def make_dense_model():
     model = tf.keras.models.Sequential()
-    model.add(tf.keras.Input(shape=(IMAGE_SIZE*IMAGE_SIZE,)))
+    model.add(tf.keras.layers.Conv2D(32, (3, 3), activation='relu', kernel_initializer='he_uniform',
+                                     input_shape=input_shape))
+    model.add(tf.keras.layers.BatchNormalization())
+    model.add(tf.keras.layers.MaxPooling2D((2, 2)))
+    model.add(tf.keras.layers.Flatten())
+    model.add(tf.keras.layers.Dense(100, activation='relu', kernel_initializer='he_uniform'))
+    model.add(tf.keras.layers.BatchNormalization())
+    model.add(tf.keras.layers.Dropout(0.5))
+    model.add(tf.keras.layers.Dense(10, activation='softmax'))
+    return model
+
+def make_dense_model(input_shape):
+    model = tf.keras.models.Sequential()
+    model.add(tf.keras.Input(shape=input_shape))
     model.add(tf.keras.layers.Dense(128, activation='relu'))
     model.add(tf.keras.layers.Dense(10, activation='softmax'))
     return model
@@ -114,14 +122,15 @@ def random_batch(X, y, batch_size=64):
     idx = np.random.randint(len(X), size=batch_size)
     return X[idx], y[idx]
 
-def print_status_bar(iteration, total, loss, metrics=None, spent_eps_delta=None):
+def print_status_bar(iteration, total, loss, time_taken, metrics=None, spent_eps_delta=None):
     metrics = " - ".join(["{}: {:.4f}".format(m.name, m.result())
                           for m in [loss] + (metrics or [])])
     end = "" if iteration < total else "\n"
     spent_eps = spent_eps_delta.spent_eps
     spent_delta = spent_eps_delta.spent_delta
     print("\r{}/{} - ".format(iteration, total) + metrics + " - spent eps: " +
-           f"{spent_eps:.4f}" + " - spent delta: " + f"{spent_delta:.8f}" + "\n", end=end)
+           f"{spent_eps:.4f}" + " - spent delta: " + f"{spent_delta:.8f}"
+           " - time spent: " + f"{time_taken}" "\n", end=end)
 
 if __name__ == "__main__":
     main()
