@@ -13,14 +13,13 @@ IMAGE_SIZE = 28
 BATCH_SIZE = 64
 LEARNING_RATE = 0.01
 L2NORM_BOUND = 4.0
+SIGMA = 4.0
         
 def main():
-    # Prepare the training and test dataset.
+    # Prepare training and test dataset.
     (X_train, y_train), _ = tf.keras.datasets.mnist.load_data()
     X_train = np.reshape(X_train, (-1, IMAGE_SIZE*IMAGE_SIZE))
     X_train = X_train.astype("float32") / 255.0
-
-    # Prepare datasets
     X_valid = X_train[-10000:]
     y_valid = y_train[-10000:]
     X_train = X_train[:-10000]
@@ -32,7 +31,6 @@ def main():
     optimizer = tf.optimizers.SGD(LEARNING_RATE)
 
     # Set constants for this loop
-    sigma = 4.0 #4.0
     eps = 1.0
     delta = 1e-7
     max_eps = 32.0 #8.0
@@ -56,7 +54,10 @@ def main():
     n_steps = len(X_train) // BATCH_SIZE
     for epoch in range(1, n_epochs +1):
         if should_terminate:
-            print("Used privacy budget, stopping ...")
+            spent_eps = spent_eps_delta.spent_eps
+            spent_delta = spent_eps_delta.spent_delta
+            print(f"Used privacy budget for {spent_eps:.4f}" +
+                   f" eps, {spent_delta:.8f} delta. Stopping ...")
             break
         print(f"Epoch {epoch}/{n_epochs}")
         for step in range(1, n_steps + 1):
@@ -70,7 +71,7 @@ def main():
                 sanitized_grads = []
                 eps_delta = EpsDelta(eps, delta)
                 for px_grad in gradients:
-                    sanitized_grad = sanitizer.sanitize(px_grad, eps_delta, sigma)
+                    sanitized_grad = sanitizer.sanitize(px_grad, eps_delta, SIGMA)
                     sanitized_grads.append(sanitized_grad)
                 spent_eps_delta = accountant.get_privacy_spent(target_eps=target_eps)[0]
                 optimizer.apply_gradients(zip(sanitized_grads, model.trainable_variables))
