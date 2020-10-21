@@ -26,5 +26,10 @@ Table 2. results of 50 epochs training with the learning rate of 0.01
 | DPSGD-DENSE|  94.57%     | 70.44%         |          |            |
 | DPSGD-CNN  |  96.59%     | 77.72%         |          |            |
 
-## Data
-Currently only supports the MNIST dataset.
+
+## Ackonwledgements
+Acknowledgements given to Abadi et al.
+
+## References
+Martín Abadi, Andy Chu, Ian Goodfellow, H. Brendan McMahan, Ilya Mironov, Kunal Talwar, Li Zhang. Deep Learning with Differential Privacy. Proceedings of the 2016 ACM SIGSAC Conference on Computer and Communications Security (ACM CCS), pp. 308-318, 2016.
+
