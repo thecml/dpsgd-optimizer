@@ -10,7 +10,7 @@ tensorflow>=2.0
 
 ## Results
 ### MNIST
-Results are shown in Table 1 and Table 2, with the parameters eps=1.0, delta=1e-7, max_eps=16, max_delta=1e-3, target_eps=16
+Results are shown in Table 1 and Table 2, with the parameters eps=1.0, delta=1e-7, target_eps=16. For DENSE network, we used a max_eps=16 and max_delta=1e-3. For CNN network, we used max_eps=64, max_delta=1e-3.
 
 Table 1. results of 50 epochs training with the learning rate of 0.01
 
