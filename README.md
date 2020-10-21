@@ -12,19 +12,19 @@ tensorflow>=2.0
 ### MNIST
 Results are shown in Table 1 and Table 2, with the parameters eps=1.0, delta=1e-7, max_eps=16, max_delta=1e-3, target_eps=16
 
-Table 1. results of 10 epochs training with the learning rate of 0.01
+Table 1. results of 50 epochs training with the learning rate of 0.01
 
 | Model      | Train acc.  | Valid acc.  | Eps used | Delta used | Training time |
 | -----      | -----       | ----        | ----     | ----       | ----
-| DPSGD-DENSE|  94.57%     | 70.44%      |          |            |
-| DPSGD-CNN  |  96.59%     | 77.72%      |          |            |
+| DPSGD-DENSE|  51.55%     | 52.10%      | 5.38     | 0.00008159 | 9.3 minutes
+| DPSGD-CNN  |  xx.xx%     | xx.xx%      |          |            |
 
-Table 2. results of 50 epochs training with the learning rate of 0.01
+Table 2. results of 100 epochs training with the learning rate of 0.01
 
-| Model      | Acc. of IID | Acc. of Non-DP | Eps used | Delta used | Training time |
-| -----      | -----       | ----           | ----     | ----       | ----
-| DPSGD-DENSE|  94.57%     | 70.44%         |          |            |
-| DPSGD-CNN  |  96.59%     | 77.72%         |          |            |
+| Model      | Train acc.  | Valid acc.  | Eps used | Delta used | Training time |
+| -----      | -----       | ----        | ----     | ----       | ----
+| DPSGD-DENSE|  54.33%     | 55.01%      | 7.61     | 0.00016385 | 20.1 minutes
+| DPSGD-CNN  |  xx.xx%     | xx.xx%      |          |            |
 
 
 ## Ackonwledgements
