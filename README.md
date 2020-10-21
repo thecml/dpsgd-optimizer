@@ -17,14 +17,14 @@ Table 1. results of 50 epochs training with the learning rate of 0.01
 | Model      | Train acc.  | Valid acc.  | Eps used | Delta used | Training time |
 | -----      | -----       | ----        | ----     | ----       | ----
 | DPSGD-DENSE|  51.55%     | 52.10%      | 5.38     | 0.00008159 | 9.3 minutes
-| DPSGD-CNN  |  xx.xx%     | xx.xx%      |          |            |
+| DPSGD-CNN  |  42.36%     | 57.27%      | 33.61    | 0.00045999 | 17.9 minutes
 
 Table 2. results of 100 epochs training with the learning rate of 0.01
 
 | Model      | Train acc.  | Valid acc.  | Eps used | Delta used | Training time |
 | -----      | -----       | ----        | ----     | ----       | ----
 | DPSGD-DENSE|  54.33%     | 55.01%      | 7.61     | 0.00016385 | 20.1 minutes
-| DPSGD-CNN  |  xx.xx%     | xx.xx%      |          |            |
+| DPSGD-CNN  |  48.54%     | 64.73%      | 47.58    | 0.00091721 | 35.8 minutes
 
 
 ## Ackonwledgements
