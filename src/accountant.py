@@ -68,10 +68,6 @@ class AmortizedAccountant(object):
                    ["delta needs to be greater than 0"])]):
       amortize_ratio = (tf.cast(num_examples, tf.float32) * 1.0 /
                         self._total_examples)
-      # Use privacy amplification via sampling bound.
-      # See Lemma 2.2 in http://arxiv.org/pdf/1405.7085v2.pdf
-      # TODO(liqzhang) Add a link to a document with formal statement
-      # and proof.
       amortize_eps = tf.reshape(tf.math.log(1.0 + amortize_ratio * (
           tf.exp(eps) - 1.0)), [1])
       amortize_delta = tf.reshape(amortize_ratio * delta, [1])
@@ -89,8 +85,6 @@ class AmortizedAccountant(object):
       opposed to numpy.float64). This is to be consistent with
       MomentAccountant which can return a list of (eps, delta) pair.
     """
-
-    # pylint: disable=unused-argument
     unused_target_eps = target_eps
     eps_squared_sum, delta_sum = ([self._eps_squared_sum, self._delta_sum])
     return [EpsDelta(math.sqrt(eps_squared_sum), float(delta_sum))]
@@ -315,15 +309,8 @@ class GaussianMomentsAccountant(MomentsAccountant):
         signs[i, j] = 1.0 - 2 * ((i - j) % 2)
     exponents = tf.constant([j * (j + 1.0 - 2.0 * s) / (2.0 * sigma * sigma)
                              for j in range(t + 1)], dtype=tf.float64)
-    # x[i, j] = binomial[i, j] * signs[i, j] = (i choose j) * (-1)^{i-j}
     x = tf.multiply(binomial, signs)
-    # y[i, j] = x[i, j] * exp(exponents[j])
-    #         = (i choose j) * (-1)^{i-j} * exp(j(j-1)/(2 sigma^2))
-    # Note: this computation is done by broadcasting pointwise multiplication
-    # between [t+1, t+1] tensor and [t+1] tensor.
     y = tf.multiply(x, tf.exp(exponents))
-    # z[i] = sum_j y[i, j]
-    #      = sum_j (i choose j) * (-1)^{i-j} * exp(j(j-1)/(2 sigma^2))
     z = tf.reduce_sum(y, 1)
     return z
 
@@ -342,7 +329,6 @@ class GaussianMomentsAccountant(MomentsAccountant):
                                                        self._max_moment_order))
     binomial_table = tf.slice(self._binomial_table, [moment_order, 0],
                               [1, moment_order + 1])
-    # qs = [1 q q^2 ... q^L] = exp([0 1 2 ... L] * log(q))
     qs = tf.exp(tf.constant([i * 1.0 for i in range(moment_order + 1)],
                             dtype=tf.float64) * tf.cast(
                                 tf.math.log(q), dtype=tf.float64))
@@ -361,7 +347,6 @@ def GenerateBinomialTable(m):
     A two dimensional array T where T[i][j] = (i choose j),
     for 0<= i, j <=m.
   """
-
   table = numpy.zeros((m + 1, m + 1), dtype=numpy.float64)
   for i in range(m + 1):
     table[i, 0] = 1
