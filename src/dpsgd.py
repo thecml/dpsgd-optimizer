@@ -189,9 +189,9 @@ def main():
         plt.xlabel('Epochs')
         plt.ylabel('Loss')
         plt.legend()
-        plt.show()
         plt.savefig(RESULTS_DIR/f"{version}-Loss-{N_EPOCHS}-{MODEL_TYPE}-{DATASET}.png")
-        
+        plt.close()
+         
         plt.figure(figsize=(8,6))
         plt.plot(epochs_range, train_acc_scores, color='blue', label='Training accuracy')
         plt.plot(epochs_range, valid_acc_scores, color='red', label='Validation accuracy')
@@ -199,8 +199,8 @@ def main():
         plt.xlabel('Epochs')
         plt.ylabel('Accuracy')
         plt.legend()
-        plt.show()
         plt.savefig(RESULTS_DIR/f"{version}-Accuracy-{N_EPOCHS}-{MODEL_TYPE}-{DATASET}.png")
+        plt.close()
 
 def make_dense_model(input_shape, units, num_classes):
     model = tf.keras.models.Sequential()
