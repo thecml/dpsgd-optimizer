@@ -14,14 +14,15 @@ RESULTS_DIR = Path.joinpath(ROOT_DIR, 'results')
 EpsDelta = collections.namedtuple("EpsDelta", ["spent_eps", "spent_delta"])
 MNIST_SIZE = 28
 CIFAR10_SIZE = 32
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 LEARNING_RATE = 0.01
 L2NORM_BOUND = 4.0
 SIGMA = 4.0
 DATASET = 'mnist'
-MODEL_TYPE = 'dense'
+MODEL_TYPE = 'cnn'
 USE_PRIVACY = True
 PLOT_RESULTS = True
+N_EPOCHS = 100
 
 def load_mnist():
     (X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data()
@@ -65,7 +66,8 @@ def main():
     
     # Prepare network
     if MODEL_TYPE == 'dense':
-        model = make_dense_model((image_size, image_size, n_channels), num_classes)
+        model = make_dense_model((image_size, image_size, n_channels),
+                                  image_size*image_size, num_classes)
     else:
         model = make_cnn_model((image_size, image_size, n_channels), num_classes)
     loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
@@ -74,9 +76,9 @@ def main():
     # Set constants for this loop
     eps = 1.0
     delta = 1e-7
-    max_eps = 64.0 #8.0
+    max_eps = 16.0
     max_delta = 1e-3
-    target_eps = [16.0] #8.0
+    target_eps = [16.0]
     target_delta = [1e-5] #unused
     
     # Create accountant, sanitizer and metrics
@@ -98,16 +100,15 @@ def main():
     start_time = time.time()
     spent_eps_delta = EpsDelta(0, 0)
     should_terminate = False
-    n_epochs = 10
     n_steps = len(X_train) // BATCH_SIZE
-    for epoch in range(1, n_epochs + 1):
+    for epoch in range(1, N_EPOCHS + 1):
         if should_terminate:
             spent_eps = spent_eps_delta.spent_eps
             spent_delta = spent_eps_delta.spent_delta
             print(f"Used privacy budget for {spent_eps:.4f}" +
                    f" eps, {spent_delta:.8f} delta. Stopping ...")
             break
-        print(f"Epoch {epoch}/{n_epochs}")
+        print(f"Epoch {epoch}/{N_EPOCHS}")
         for step in range(1, n_steps + 1):
             X_batch, y_batch = random_batch(X_train, y_train)
             with tf.GradientTape() as tape:
@@ -142,8 +143,8 @@ def main():
                     valid_acc_metric.update_state(y_batch, y_pred)
                     metric(y_batch, y_pred)
                 if USE_PRIVACY:
-                        print_status_bar(step * BATCH_SIZE, len(y_train), train_mean_loss, time_taken,
-                                         train_metrics + valid_metrics, spent_eps_delta,) 
+                    print_status_bar(step * BATCH_SIZE, len(y_train), train_mean_loss, time_taken,
+                                     train_metrics + valid_metrics, spent_eps_delta,) 
                 else:
                     print_status_bar(step * BATCH_SIZE, len(y_train), train_mean_loss, time_taken,
                                      train_metrics + valid_metrics)
@@ -176,11 +177,11 @@ def main():
     
     # Save model
     version = "DPSGD" if USE_PRIVACY else "SGD"
-    model.save(MODELS_DIR/f"{version}-{n_epochs}-{MODEL_TYPE}-{DATASET}.h5")
+    model.save(MODELS_DIR/f"{version}-{N_EPOCHS}-{MODEL_TYPE}-{DATASET}.h5")
     
     # Make plots
     if PLOT_RESULTS:
-        epochs_range = range(1, n_epochs+1)
+        epochs_range = range(1, N_EPOCHS+1)
         plt.figure(figsize=(8,6))
         plt.plot(epochs_range, train_loss_scores, color='blue', label='Training loss')
         plt.plot(epochs_range, valid_loss_scores, color='red', label='Validation loss')
@@ -189,7 +190,7 @@ def main():
         plt.ylabel('Loss')
         plt.legend()
         plt.show()
-        plt.savefig(RESULTS_DIR/f"{version}-Loss-{n_epochs}-{MODEL_TYPE}-{DATASET}.png")
+        plt.savefig(RESULTS_DIR/f"{version}-Loss-{N_EPOCHS}-{MODEL_TYPE}-{DATASET}.png")
         
         plt.figure(figsize=(8,6))
         plt.plot(epochs_range, train_acc_scores, color='blue', label='Training accuracy')
@@ -199,12 +200,12 @@ def main():
         plt.ylabel('Accuracy')
         plt.legend()
         plt.show()
-        plt.savefig(RESULTS_DIR/f"{version}-Accuracy-{n_epochs}-{MODEL_TYPE}-{DATASET}.png")
+        plt.savefig(RESULTS_DIR/f"{version}-Accuracy-{N_EPOCHS}-{MODEL_TYPE}-{DATASET}.png")
 
-def make_dense_model(input_shape, num_classes):
+def make_dense_model(input_shape, units, num_classes):
     model = tf.keras.models.Sequential()
     model.add(tf.keras.layers.Flatten(input_shape=input_shape))
-    model.add(tf.keras.layers.Dense(128, activation='relu'))
+    model.add(tf.keras.layers.Dense(units, activation='relu'))
     model.add(tf.keras.layers.Dense(num_classes, activation='softmax'))
     return model
 
