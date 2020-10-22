@@ -15,19 +15,45 @@ LEARNING_RATE = 0.01
 L2NORM_BOUND = 4.0
 SIGMA = 4.0
 N_CHANNELS = 1
-        
-def main():
-    # Prepare training and test dataset.
-    (X_train, y_train), _ = tf.keras.datasets.mnist.load_data()
-    X_train = np.reshape(X_train, (-1, IMAGE_SIZE, IMAGE_SIZE))
+DATASET = 'mnist'
+MODEL_TYPE = 'dense'
+USE_PRIVACY = False
+
+def load_mnist():
+    image_size = 28
+    (X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data()
+    X_train = np.reshape(X_train, (-1, image_size, image_size))
+    X_test = np.reshape(X_test, (-1, image_size, image_size))
     X_train = X_train.astype("float32") / 255.0
+    X_test = X_test.astype("float32") / 255.0
+    return X_train, y_train, X_test, y_test
+        
+def load_cifar10():
+    image_size = 32
+    (X_train, y_train), (X_test, y_test) = tf.keras.datasets.cifar10.load_data()
+    X_train = np.reshape(X_train, (-1, image_size, image_size))
+    X_test = np.reshape(X_test, (-1, image_size, image_size))
+    X_train = X_train.astype("float32") / 255.0
+    X_test = X_test.astype("float32") / 255.0
+    return X_train, y_train, X_test, y_test    
+ 
+def main():
+    if DATASET == 'mnist':
+        X_train, y_train, X_test, y_test = load_mnist()
+    else:
+        X_train, y_train, X_test, y_test = load_cifar10()
+        
+    # Set aside valid set for training
     X_valid = X_train[-10000:]
     y_valid = y_train[-10000:]
     X_train = X_train[:-10000]
     y_train = y_train[:-10000]
     
     # Prepare network
-    model = make_cnn_model((IMAGE_SIZE, IMAGE_SIZE, N_CHANNELS))
+    if MODEL_TYPE == 'dense':
+        model = make_dense_model((IMAGE_SIZE, IMAGE_SIZE))
+    else:
+        model = make_cnn_model((IMAGE_SIZE, IMAGE_SIZE, N_CHANNELS))
     loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     optimizer = tf.optimizers.SGD(LEARNING_RATE)
 
@@ -39,7 +65,7 @@ def main():
     target_eps = [16.0] #8.0
     target_delta = [1e-5] #unused
     
-    # Create objects
+    # Create accountant, sanitizer and metrics
     accountant = AmortizedAccountant(len(X_train))
     sanitizer = AmortizedGaussianSanitizer(accountant, [L2NORM_BOUND / BATCH_SIZE, True])
     mean_loss = tf.keras.metrics.Mean()
@@ -50,7 +76,6 @@ def main():
     start_time = time.time()
     spent_eps_delta = EpsDelta(0, 0)
     should_terminate = False
-    use_privacy = True
     n_epochs = 100
     n_steps = len(X_train) // BATCH_SIZE
     for epoch in range(1, n_epochs +1):
@@ -68,7 +93,7 @@ def main():
                 main_loss = tf.reduce_mean(loss_fn(y_batch, y_pred))
                 loss = tf.add_n([main_loss] + model.losses)
             gradients = tape.gradient(loss, model.trainable_variables)
-            if use_privacy:
+            if USE_PRIVACY:
                 sanitized_grads = []
                 eps_delta = EpsDelta(eps, delta)
                 for px_grad in gradients:
@@ -89,7 +114,7 @@ def main():
                     X_batch, y_batch = random_batch(X_valid, y_valid)
                     y_pred = model(X_batch, training=False)
                     metric(y_batch, y_pred)
-                if use_privacy:
+                if USE_PRIVACY:
                         print_status_bar(step * BATCH_SIZE, len(y_train), mean_loss, time_taken,
                                          train_metrics + valid_metrics, spent_eps_delta,) 
                 else:
@@ -104,10 +129,15 @@ def make_cnn_model(input_shape):
                                      input_shape=input_shape))
     model.add(tf.keras.layers.BatchNormalization())
     model.add(tf.keras.layers.MaxPooling2D((2, 2)))
-    model.add(tf.keras.layers.Flatten())
-    model.add(tf.keras.layers.Dense(100, activation='relu', kernel_initializer='he_uniform'))
+    model.add(tf.keras.layers.Conv2D(64, (3, 3), activation='relu', kernel_initializer='he_uniform'))
     model.add(tf.keras.layers.BatchNormalization())
-    model.add(tf.keras.layers.Dropout(0.5))
+    model.add(tf.keras.layers.MaxPooling2D((2, 2)))
+    model.add(tf.keras.layers.Conv2D(64, (3, 3), activation='relu', kernel_initializer='he_uniform'))
+    model.add(tf.keras.layers.BatchNormalization())
+    model.add(tf.keras.layers.MaxPooling2D((2, 2)))
+    model.add(tf.keras.layers.Flatten())
+    model.add(tf.keras.layers.Dense(64, activation='relu', kernel_initializer='he_uniform'))
+    model.add(tf.keras.layers.BatchNormalization())
     model.add(tf.keras.layers.Dense(10, activation='softmax'))
     return model
 
