@@ -12,33 +12,31 @@ MODELS_DIR = Path.joinpath(ROOT_DIR, 'models')
 RESULTS_DIR = Path.joinpath(ROOT_DIR, 'results')
 
 EpsDelta = collections.namedtuple("EpsDelta", ["spent_eps", "spent_delta"])
-MNIST_SIZE = 28
-CIFAR10_SIZE = 32
 BATCH_SIZE = 64
 LEARNING_RATE = 0.01
 L2NORM_BOUND = 4.0
 SIGMA = 4.0
 DATASET = 'mnist'
-MODEL_TYPE = 'cnn'
+MODEL_TYPE = 'dense'
 USE_PRIVACY = True
 PLOT_RESULTS = True
-N_EPOCHS = 100
+N_EPOCHS = 200
 
-def load_mnist():
+def load_mnist(image_size=28):
     (X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data()
-    X_train = X_train.reshape(X_train.shape[0], MNIST_SIZE, MNIST_SIZE, 1)
-    X_test = X_test.reshape(X_test.shape[0], MNIST_SIZE, MNIST_SIZE, 1)
+    X_train = X_train.reshape(X_train.shape[0], image_size, image_size, 1)
+    X_test = X_test.reshape(X_test.shape[0], image_size, image_size, 1)
     X_train = X_train.astype("float32") / 255.0
     X_test = X_test.astype("float32") / 255.0
     return X_train, y_train, X_test, y_test
         
-def load_cifar10():
+def load_cifar10(image_size=32):
     (X_train, y_train), (X_test, y_test) = tf.keras.datasets.cifar10.load_data()
-    X_train = X_train.reshape(X_train.shape[0], CIFAR10_SIZE, CIFAR10_SIZE, 3)
-    X_test = X_test.reshape(X_test.shape[0], CIFAR10_SIZE, CIFAR10_SIZE, 3)
+    X_train = X_train.reshape(X_train.shape[0], image_size, image_size, 3)
+    X_test = X_test.reshape(X_test.shape[0], image_size, image_size, 3)
     X_train = X_train.astype("float32") / 255.0
     X_test = X_test.astype("float32") / 255.0
-    return X_train, y_train, X_test, y_test    
+    return X_train, y_train, X_test, y_test
 
 def shuffle_split_data(X, y):
     arr_rand = np.random.rand(X.shape[0])
@@ -53,14 +51,14 @@ def main():
     if DATASET == 'mnist':
         X_train, y_train, X_test, y_test = load_mnist()
         num_classes = 10
-        image_size = MNIST_SIZE
+        image_size = 28
         n_channels = 1
     else:
         X_train, y_train, X_test, y_test = load_cifar10()
         num_classes = 10
-        image_size = CIFAR10_SIZE
+        image_size = 32
         n_channels = 3
-            
+                    
     # Create train/valid set
     X_train, y_train, X_valid, y_valid = shuffle_split_data(X_train, y_train)
     
@@ -71,14 +69,14 @@ def main():
     else:
         model = make_cnn_model((image_size, image_size, n_channels), num_classes)
     loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-    optimizer = tf.optimizers.SGD(LEARNING_RATE) 
+    optimizer = tf.optimizers.SGD(LEARNING_RATE)
 
     # Set constants for this loop
     eps = 1.0
     delta = 1e-7
-    max_eps = 16.0
+    max_eps = 64.0
     max_delta = 1e-3
-    target_eps = [16.0]
+    target_eps = [64.0]
     target_delta = [1e-5] #unused
     
     # Create accountant, sanitizer and metrics
@@ -166,6 +164,14 @@ def main():
         valid_loss_scores.append(valid_loss)
         valid_acc_metric.reset_states()
         valid_mean_loss.reset_states()
+        
+        if epoch % 10 == 0:
+            for metric in test_metrics:
+                y_pred = model(X_test, training=False)
+                metric(y_test, y_pred)
+            metrics = " - ".join(["{}: {:.4f}".format(m.name, m.result())
+                                  for m in test_metrics or []])
+            print(f"Epoch {10} test accuracy: {metrics}")
     
     # Evaluate model
     for metric in test_metrics:
