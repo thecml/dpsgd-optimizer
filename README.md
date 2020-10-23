@@ -1,6 +1,6 @@
 # Differentially Private Stochastic Gradient Descent
 
-This is a implementation of the differentially private SGD optimizer described in the [Deep Learning with Differential Privacy](https://arxiv.org/abs/1607.00133) paper using a Gaussian sanitizer to sanitize gradients and a amortized accountant to keep track of used privacy. AmortizedGaussianSanitizer sanitizes gradients with Gaussian noise in an amoritzed way. AmortizedAccountant accumulates the privacy spending by assuming all the examples are processed uniformly at random, so the spending is amortized among all the examples. Implementation is done in Tensorflow 2.3.
+This is a partly implementation of the differentially private SGD optimizer described in the [Deep Learning with Differential Privacy](https://arxiv.org/abs/1607.00133) paper using a Gaussian sanitizer to sanitize gradients and a amortized accountant to keep track of used privacy. AmortizedGaussianSanitizer sanitizes gradients with Gaussian noise in an amoritzed way. AmortizedAccountant accumulates the privacy spending by assuming all the examples are processed uniformly at random, so the spending is amortized among all the examples. Implementation is done in Tensorflow 2.3.
 
 Note: The scripts will be slow without CUDA enabled.
 
@@ -16,18 +16,18 @@ Table 1. results of 100 epochs training with the learning rate of 0.01
 
 | Model      | Train acc.  | Valid acc.  | Test acc. | Eps used | Delta used | Training time |
 | -----      | -----       | ----        | ----      | ----     | ----       | ----
-| DPSGD-DENSE|  xx.xx%     | xx.xx%      |           | 8.29     | 0.00016385 | 20.1 minutes
-| DPSGD-CNN  |  xx.xx%     | xx.xx%      |  xx.xx%   | 3.23     | 0.00024880 | 94.95 minutes
+| DPSGD-DENSE|  42.31%     | 42.48%      | 42.48%    | 13.99    | 0.00036839 | 16.3 minutes
+| DPSGD-CNN  |  xx.xx%     | xx.xx%      | xx.xx%    | x.xx     | 0.00024880 | xx.xx minutes
 
 Table 2. results of 200 epochs training with the learning rate of 0.01
 
 | Model      | Train acc.  | Valid acc.  | Test acc. | Eps used | Delta used | Training time |
 | -----      | -----       | ----        | ----      | ----     | ----       | ----
-| DPSGD-DENSE|  xx.xx%     | xx.xx%      |           | x.xx     | 0.00016385 | 20.1 minutes
+| DPSGD-DENSE|  44.77%     | 44.81%      |  46.23%   | 19.82    | 0.00073558 | 32.8 minutes
 | DPSGD-CNN  |  74.19%     | 74.62%      |  81.86%   | 3.23     | 0.00024880 | 94.95 minutes
 
 
-## Acknowledgements
+## Ackonwledgements
 Acknowledgements given to [marcotcr](https://github.com/marcotcr/tf-models).
 
 ## References
