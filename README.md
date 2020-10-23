@@ -27,7 +27,7 @@ Table 2. results of 200 epochs training with the learning rate of 0.01
 | DPSGD-CNN  |  74.19%     | 74.62%      |  81.86%   | 3.23     | 0.00024880 | 94.95 minutes
 
 
-## Ackonwledgements
+## Acknowledgements
 Acknowledgements given to [marcotcr](https://github.com/marcotcr/tf-models).
 
 ## References
