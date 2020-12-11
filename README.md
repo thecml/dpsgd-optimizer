@@ -5,7 +5,7 @@ This is an implementation of the differentially private SGD optimizer described 
 Note: The scripts will be slow without CUDA enabled.
 
 ## Requirements
-See requirements.txt
+python>=3.6
 
 ## Results
 ### MNIST
