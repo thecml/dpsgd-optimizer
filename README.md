@@ -1,6 +1,6 @@
 # Differentially Private Stochastic Gradient Descent
 
-This is a partly implementation of the differentially private SGD optimizer described in the [Deep Learning with Differential Privacy](https://arxiv.org/abs/1607.00133) paper using a Gaussian sanitizer to sanitize gradients and a amortized accountant to keep track of used privacy. AmortizedGaussianSanitizer sanitizes gradients with Gaussian noise in an amoritzed way. AmortizedAccountant accumulates the privacy spending by assuming all the examples are processed uniformly at random, so the spending is amortized among all the examples. Implementation is done in Tensorflow 2.3.
+This is an implementation of the differentially private SGD optimizer described in the [Deep Learning with Differential Privacy](https://arxiv.org/abs/1607.00133) paper using a Gaussian sanitizer to sanitize gradients and a amortized momemnts accountant to keep track of used privacy. Very useful for deep learning project that require some level of privacy guarantee during training. The AmortizedGaussianSanitizer sanitizes gradients with Gaussian noise in an amoritzed way. AmortizedAccountant accumulates the privacy spending by assuming all the examples are processed uniformly at random, so the spending is amortized among all the examples. Implementation is done in Tensorflow 2.3.
 
 Note: The scripts will be slow without CUDA enabled.
 
