@@ -26,6 +26,11 @@ Table 2. results of 200 epochs training with the learning rate of 0.01
 | DPSGD-DENSE|  47.93%     | 48.11%      |  49.14%   | 19.79    | 0.00073558 | 28M 48S
 | DPSGD-CNN  |  73.97%     | 74.22%      |  76.83%   | 3.23     | 0.00024880 | 1H 46M
 
+The accuracy for DPSGD-CNN on MNIST for 200 epochs
+<img src="https://raw.githubusercontent.com/thecml/dpsgd-optimizer/master/results/DPSGD-Accuracy-200-cnn-mnist.png" width="640" height="480">
+
+The loss for DPSGD-CNN on MNIST for 200 epochs
+<img src="https://raw.githubusercontent.com/thecml/dpsgd-optimizer/master/results/DPSGD-Loss-200-cnn-mnist.png" width="640" height="480">
 
 ## Acknowledgements
 Acknowledgements given to [marcotcr](https://github.com/marcotcr/tf-models).
