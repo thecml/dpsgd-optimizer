@@ -3,8 +3,8 @@ import tensorflow as tf
 import collections
 import time
 import matplotlib.pyplot as plt
-from dpsgd_optimizer.accountant import *
-from dpsgd_optimizer.sanitizer import *
+from dpsgd.accountant import *
+from dpsgd.sanitizer import *
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).absolute().parent.parent
