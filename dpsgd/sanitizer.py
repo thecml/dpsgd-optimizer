@@ -25,7 +25,7 @@ import collections
 
 import tensorflow as tf
 
-import utils
+import dpsgd_optimizer.utils as utils
 
 
 ClipOption = collections.namedtuple("ClipOption",
