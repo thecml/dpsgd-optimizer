@@ -302,7 +302,7 @@ class GaussianMomentsAccountant(MomentsAccountant):
                                          % (t, self._max_moment_order))
     binomial = tf.slice(self._binomial_table, [0, 0],
                         [t + 1, t + 1])
-    ii, jj = np.mgrid[:t+1,:t+1]
+    ii, jj = numpy.mgrid[:t+1,:t+1]
     signs = 1.0 - 2 * ((ii - jj) % 2)
     exponents = tf.constant([j * (j + 1.0 - 2.0 * s) / (2.0 * sigma * sigma)
                              for j in range(t + 1)], dtype=tf.float64)
