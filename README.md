@@ -35,7 +35,7 @@ The loss for DPSGD-CNN on MNIST for 200 epochs:
 Acknowledgements given to [marcotcr](https://github.com/marcotcr/tf-models).
 
 ## Citation
-If you found the package useful for your work and want to cite it, see "Cite this repository" in the right panel on Github.
+If you found the package useful for your work and want to cite it, click "Cite this repository" on the right.
 
 ## References
 Martín Abadi, Andy Chu, Ian Goodfellow, H. Brendan McMahan, Ilya Mironov, Kunal Talwar, Li Zhang. Deep Learning with Differential Privacy. Proceedings of the 2016 ACM SIGSAC Conference on Computer and Communications Security (ACM CCS), pp. 308-318, 2016.
