@@ -1,6 +1,6 @@
 # Differentially Private Stochastic Gradient Descent
 
-This is an implementation of the differentially private SGD optimizer described in the [Deep Learning with Differential Privacy](https://arxiv.org/abs/1607.00133) paper using a Gaussian sanitizer to sanitize gradients and a amortized momemnts accountant to keep track of used privacy. Very useful for deep learning projects that require some level of privacy guarantee during training. The AmortizedGaussianSanitizer sanitizes gradients with Gaussian noise in an amoritzed way. AmortizedAccountant accumulates the privacy spending by assuming all the examples are processed uniformly at random, so the spending is amortized among all the examples. Implementation is done in Tensorflow 2.3.
+This is an implementation of the differentially private SGD optimizer described in the [Deep Learning with Differential Privacy](https://arxiv.org/abs/1607.00133) paper. It uses a Gaussian sanitizer to sanitize gradients and an amortized moments accountant to keep track of spent privacy. Very useful for deep learning projects that require some level of privacy guarantee during training. The AmortizedGaussianSanitizer sanitizes gradients with Gaussian noise in an amoritzed way. AmortizedAccountant accumulates the privacy spending by assuming all the examples are processed uniformly at random, so the spending is amortized among all the examples. Implementation is done in Tensorflow 2.3.
 
 Note: The scripts will be slow without CUDA enabled.
 
@@ -34,6 +34,11 @@ The loss for DPSGD-CNN on MNIST for 200 epochs:
 ## Acknowledgements
 Acknowledgements given to [marcotcr](https://github.com/marcotcr/tf-models).
 
+## Citation
+If you found the package useful for your work and want to cite it, see "Cite this repository" in the right panel on Github.
+
 ## References
 Martín Abadi, Andy Chu, Ian Goodfellow, H. Brendan McMahan, Ilya Mironov, Kunal Talwar, Li Zhang. Deep Learning with Differential Privacy. Proceedings of the 2016 ACM SIGSAC Conference on Computer and Communications Security (ACM CCS), pp. 308-318, 2016.
+
+
 
